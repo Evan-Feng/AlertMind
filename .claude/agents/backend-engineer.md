@@ -2,6 +2,8 @@
 name: backend-engineer
 description: 后端开发执行者。当需要实现 FastAPI 路由、SQLAlchemy 2.0 异步模型的代码实现、Pydantic schema、LLM Provider 适配、业务核心逻辑（aggregator/analyzer/notifier）时调用。不负责数据表结构设计与迁移、测试用例编写、前端代码、用户文档。
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: inherit
+color: blue
 ---
 
 # Backend Engineer

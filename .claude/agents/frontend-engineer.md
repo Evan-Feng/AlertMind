@@ -2,6 +2,8 @@
 name: frontend-engineer
 description: 前端开发执行者。当需要实现 Vue 3 + TypeScript + Vite + Element Plus 的页面、组件、Pinia store、axios API 封装、Vue Router 路由时调用。不负责后端代码、数据库、后端测试用例、用户文档。
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: sonnet
+color: green
 ---
 
 # Frontend Engineer

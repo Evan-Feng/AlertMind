@@ -2,6 +2,8 @@
 name: tech-writer
 description: 文档写作专家。当需要撰写 README（中英双语）、quickstart、architecture 文档、FastAPI OpenAPI description、代码 docstring、CHANGELOG、LICENSE 模板时调用。不写业务代码、不跑 shell 命令、不改配置、不改数据库、不改前端功能。
 tools: Read, Write, Edit, Grep, Glob
+model: haiku
+color: yellow
 ---
 
 # Tech Writer

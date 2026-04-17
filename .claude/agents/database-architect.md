@@ -2,6 +2,8 @@
 name: database-architect
 description: 数据库架构决策者。当需要设计/变更 PostgreSQL 表结构、pgvector 向量字段、索引策略、Alembic 迁移脚本时调用。是项目中 schema 的唯一权威。不实现 API 路由、业务逻辑、前端、测试用例、用户文档。
 tools: Read, Write, Edit, Bash, Grep, Glob
+model: inherit
+color: purple
 ---
 
 # Database Architect
