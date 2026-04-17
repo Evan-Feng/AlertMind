@@ -1,0 +1,145 @@
+# AlertMind — 项目工作指令
+
+> 本文件是 Claude Code 主 Agent 在本项目中的最高行为准则。所有决策和操作必须遵守以下规范。本文件**不复制** PRD 的细节，只规定 Agent 的工作方式。
+
+---
+
+## 1. 项目简介
+
+**AlertMind** 是一个给 Prometheus Alertmanager 装上「大脑」的开源 AIOps 平台——通过 LLM 实现告警聚合、根因分析与中文处置建议，接入零侵入，Docker Compose 一键启动。
+
+**完整项目规格见 [AlertMind-PRD.md](./AlertMind-PRD.md)，该文档是唯一事实来源（Single Source of Truth）。** 技术栈、目录结构、数据模型、API 设计、分阶段路线图、禁止清单等请一律以 PRD 为准。
+
+核心差异点（需在产出中持续体现）：
+1. **零侵入**：只做 Alertmanager Webhook 接收端
+2. **多模型**：OpenAI / Claude / 通义千问 / Ollama 可选
+3. **中文优先**：默认中文 Prompt、UI、文档
+4. **知识库可插拔**：Runbook RAG（v2）
+
+---
+
+## 2. 工作流规范
+
+### 2.1 分阶段执行（硬约束）
+
+**严格按 AlertMind-PRD.md §8 的分阶段路线图执行，每阶段完成后必须停下等待用户验收，禁止跨阶段推进。**
+
+### 2.2 会话启动流程
+
+每次新会话开始时，主 Agent 必须先完成以下检查再进入任何实质开发：
+
+1. `git status` —— 看工作区状态
+2. `git log --oneline -10` —— 看最近 commit
+3. 查阅 `AlertMind-PRD.md` §8，判定**当前所处阶段**
+4. 向用户汇报「当前阶段」「未完成事项」「下一步建议」
+
+### 2.3 阶段完成判定
+
+阶段完成标准见 PRD 每个阶段的「验收标准」。主 Agent 必须**自己跑完验收命令**（docker compose、curl、pytest、ruff 等）并确认通过后，才能向用户汇报「阶段 N 完成，请验收」。
+
+---
+
+## 3. 多 Agent 协作规范
+
+### 3.1 角色分工
+
+**主 Agent（协调者）** 的职责：
+- 理解用户需求，拆解成可执行任务
+- 根据任务性质派发给对应 Subagent
+- 整合 Subagent 产出
+- 跨 Agent 信息传递（契约、上下文）
+- 运行验收命令、发起 commit
+
+**主 Agent 不直接写大段业务代码**，除非是跨多领域的集成胶水（例如串 backend + frontend 的联调脚本）。
+
+### 3.2 Subagent 清单
+
+| Subagent | 职责 | 定义文件 |
+|----------|------|---------|
+| `backend-engineer` | FastAPI / SQLAlchemy / Pydantic 后端实现 | `.claude/agents/backend-engineer.md` |
+| `frontend-engineer` | Vue3 / TypeScript / Vite / Element Plus 前端实现 | `.claude/agents/frontend-engineer.md` |
+| `database-architect` | PostgreSQL / pgvector / Alembic schema 与迁移 | `.claude/agents/database-architect.md` |
+| `qa-engineer` | pytest 测试用例、覆盖率、边界 case | `.claude/agents/qa-engineer.md` |
+| `tech-writer` | README / 快速开始 / 架构文档 / 注释 | `.claude/agents/tech-writer.md` |
+
+### 3.3 跨 Agent 信息传递（硬约束）
+
+派发给 Subagent 时，主 Agent 必须在 prompt 中明确提供：
+
+1. **任务目标**：一句话说清要做什么
+2. **上下文**：相关文件路径、已有代码、PRD 引用章节
+3. **输入契约**：API schema、数据表结构、UI 需求等
+4. **输出要求**：文件位置、函数签名、返回格式
+5. **禁区**：不允许修改的文件/模块
+
+典型传递：
+- **backend → frontend**（新增 API 后）：endpoint 路径 + request/response schema + 示例 payload
+- **database-architect → backend**（表变更后）：表结构 diff + 迁移文件路径 + 新字段含义
+- **任何 Agent → qa-engineer**（新增功能后）：功能描述 + 接口/函数签名 + 典型/边界/异常用例 + mock 提示
+- **任何 Agent → tech-writer**（功能稳定后）：用户视角的使用流程 + 配置项 + 示例命令
+
+### 3.4 禁止事项（多 Agent）
+
+- 禁止 Subagent 越界（见各 Subagent 定义文件的「职责边界」）
+- 禁止主 Agent 把任务扔给 Subagent 后不做整合就直接 commit
+- 禁止 Subagent 间直接互相调用——**所有协作必须通过主 Agent 中转**
+
+---
+
+## 4. Commit 规范
+
+### 4.1 Conventional Commits
+
+格式：`<type>(<scope>): <subject>`
+
+| type | 用途 |
+|------|------|
+| `feat` | 新功能 |
+| `fix` | Bug 修复 |
+| `docs` | 文档 |
+| `refactor` | 重构（不改功能） |
+| `test` | 测试 |
+| `chore` | 构建、依赖、工具链 |
+| `perf` | 性能优化 |
+| `style` | 格式（不影响逻辑） |
+
+`scope` 建议：`backend`、`frontend`、`db`、`docker`、`ci`、`docs`。
+
+### 4.2 Commit 时机
+
+- 每个阶段至少一个 commit
+- 阶段内部的子功能可单独 commit
+- 绝不把多个无关变更塞进同一个 commit
+
+---
+
+## 5. 代码风格
+
+- **Python**：`ruff format` + `ruff check`（不用 black）；全部类型注解；docstring 中文
+- **TypeScript / Vue**：Vue 官方推荐风格；**全部** Composition API + `<script setup>`；ESLint + Prettier
+- **命名**：英文标识符 + 中文注释；不要中英文混用变量名
+- **日志**：后端用 `loguru`，禁止 `print`
+
+---
+
+## 6. 环境变量管理
+
+- 敏感信息（API Key、数据库密码、Webhook URL 等）一律走 `.env`，**绝不硬编码**
+- `.env` 已在 `.gitignore`；`.env.example` 必须与实际配置同步
+- 后端用 `pydantic-settings` 统一加载
+
+---
+
+## 7. 禁止事项（硬红线）
+
+1. **禁止未经验收跨阶段推进**
+2. **禁止更换 PRD §1 锁定的技术栈**（包括但不限于：Celery / Kafka / Black / 其他 ORM / 其他前端框架）
+3. **禁止引入 PRD §11「不要做的事」清单里的任何东西**
+4. **禁止把 `.env` / 密钥 / API Key 提交进 git**
+5. **禁止在 MVP 阶段做 PRD 明确放到 v2 的功能**（用户系统、对话追问、自动修复执行、Helm Chart 等）
+
+---
+
+## 8. 未完成事项（TODO）
+
+- [ ] **阶段 1 启动时添加 MIT `LICENSE` 文件**（由 `tech-writer` 起草 MIT 模板，主 Agent 检查并 commit）

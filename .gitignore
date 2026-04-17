@@ -1,0 +1,94 @@
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# virtual envs
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# testing / typing / linting
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+.ipynb_checkpoints
+
+# ===== Node.js =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp
+.pnp.js
+
+# build outputs (shared for Python + Node)
+dist/
+dist-ssr/
+*.local
+
+# Vite
+.vite/
+
+# ===== Env files =====
+.env
+.env.*
+!.env.example
+
+# ===== IDE / Editors =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Claude Code local settings (machine-specific, do NOT commit) =====
+.claude/settings.local.json
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Local databases / data =====
+*.db
+*.sqlite
+*.sqlite3
+pgdata/
+redis-data/
