@@ -1,0 +1,14 @@
+name: Docker Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stub:
+    name: Docker build (stub until Phase 7)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: |
+          echo "🚧 真实的 backend / frontend 镜像构建将在 AlertMind PRD §8.7 阶段 7 实现。"
+          echo "当前为阶段 1 占位 workflow，不执行任何构建动作。"

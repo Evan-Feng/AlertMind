@@ -1,0 +1,26 @@
+# 运行：uv run --project backend pre-commit install
+# 验证：uv run --project backend pre-commit run --all-files
+# 说明：阶段 1 仅挂 ruff。mypy 因 strict 模式 + 第三方 stub 问题，
+#      统一由 CI 用 `--install-types --non-interactive` 执行，本地不挂。
+
+default_language_version:
+  python: python3.11
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
