@@ -1,0 +1,48 @@
+## AlertMind 开发向 compose（独立文件，非 override）
+## 仅启动 PostgreSQL (带 pgvector) 与 Redis，数据通过 bind mount 落到项目根目录，
+## 便于本地直接查看与清理。容器名加 -dev 后缀，避免与生产版 compose 冲突。
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: alertmind-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-alertmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alertmind}
+      POSTGRES_DB: ${POSTGRES_DB:-alertmind}
+    ports:
+      - "15432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-alertmind} -d ${POSTGRES_DB:-alertmind}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - alertmind
+
+  redis:
+    image: redis:7-alpine
+    container_name: alertmind-redis-dev
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - ./redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - alertmind
+
+networks:
+  alertmind:
+    driver: bridge

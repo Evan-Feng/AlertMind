@@ -1,0 +1,54 @@
+## AlertMind 生产向基础 compose
+## 阶段 1：仅启动 PostgreSQL (带 pgvector) 与 Redis 两个依赖服务。
+## 阶段 7 会在此之上追加 backend / frontend service。
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: alertmind-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-alertmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alertmind}
+      POSTGRES_DB: ${POSTGRES_DB:-alertmind}
+    ports:
+      # 主机 15432 -> 容器 5432，避免与本机既有 postgres 冲突
+      - "15432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-alertmind} -d ${POSTGRES_DB:-alertmind}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - alertmind
+
+  redis:
+    image: redis:7-alpine
+    container_name: alertmind-redis
+    restart: unless-stopped
+    ports:
+      # 主机 16379 -> 容器 6379，避免与本机既有 redis 冲突
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - alertmind
+
+volumes:
+  pg_data:
+  redis_data:
+
+networks:
+  alertmind:
+    driver: bridge
