@@ -50,6 +50,9 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
 # RUF001/RUF002/RUF003: 中文全角标点（：，（）、；等）在中文 docstring/注释中是合法且必要的，不视为歧义
 ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 
+[tool.ruff.lint.per-file-ignores]
+"alertmind/models/**" = ["RUF012"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

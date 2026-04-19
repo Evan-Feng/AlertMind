@@ -17,10 +17,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from alertmind.config import settings
 from alertmind.db.base import Base
-
-# TODO: 阶段 2 起在此处 import ORM 模型以支持 autogenerate，形如
-#       ``from alertmind.models import *``（需附加 noqa:F401,F403）。
-#       阶段 1 ``alertmind.models`` 仍为空包，故暂不导入。
+from alertmind.models import *  # noqa: F403
 
 # Alembic Config 对象，承载 alembic.ini 中的配置项。
 config = context.config
