@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from loguru import logger
 
 from alertmind import __version__
+from alertmind.api.alerts import router as alerts_router
 from alertmind.api.health import router as health_router
 from alertmind.api.webhook import router as webhook_router
 from alertmind.db.session import engine
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(webhook_router, prefix="/api/v1")
+    app.include_router(alerts_router, prefix="/api/v1")
     return app
 
 
