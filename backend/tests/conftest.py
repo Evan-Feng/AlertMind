@@ -144,14 +144,39 @@ async def db_session(db_url: str, alembic_upgrade: None) -> AsyncGenerator[Async
 # ---------------------------------------------------------------------------
 
 
+class _FakeEmbedder:
+    """测试用 Embedder 替身。
+
+    - :attr:`model_name` 返回一个固定字符串，兼容 aggregator 写回 ``embedding_model`` 字段。
+    - :meth:`embed` 返回固定的 512 维零向量，避免真正加载 sentence-transformers。
+
+    真正的聚合语义验证（向量检索、阈值匹配）由 W5 的集成测试单独覆盖，
+    本替身只是为了让 webhook 同步路径上 ``_get_app_embedder`` 不抛
+    ``RuntimeError``，并让 BackgroundTasks 即便被 httpx ASGITransport 触发
+    也能跑通（或静默跳过——测试不 assert 聚合结果时）。
+    """
+
+    model_name: str = "test-fake-embedder"
+
+    def embed(self, text: str) -> list[float]:
+        """返回 512 维固定向量（全零）。"""
+        return [0.0] * 512
+
+
 @pytest.fixture()
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """httpx.AsyncClient，通过 dependency_overrides 注入测试 db_session。
 
     每个测试请求走的 DB 操作都绑定到同一个 db_session（SAVEPOINT 隔离），
     测试结束后清理 dependency_overrides，防止跨测试状态污染。
+
+    额外：给 ``app.state`` 注入 :class:`_FakeEmbedder`，因为 ASGITransport 不触发
+    lifespan，而 webhook handler 在 W3 之后会从 ``app.state.embedder`` 取实例
+    交给 BackgroundTasks。测试无需真正验证 embedding 计算，此替身纯粹避免
+    ``RuntimeError: embedder not initialized``。
     """
     app = create_app()
+    app.state.embedder = _FakeEmbedder()
 
     async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
         """覆盖 get_db，直接 yield 测试 session，不自行 close（由 db_session fixture 管理）。"""
