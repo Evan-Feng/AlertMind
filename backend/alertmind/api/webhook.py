@@ -133,7 +133,7 @@ def _enforce_content_length(request: Request) -> None:
             MAX_PAYLOAD_BYTES,
         )
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="payload exceeds 10 MiB limit",
         )
 
@@ -171,7 +171,7 @@ async def receive_alertmanager_webhook(
             _preview(raw),
         )
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="invalid alertmanager payload",
         ) from exc
 
