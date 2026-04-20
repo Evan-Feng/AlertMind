@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from typing import Any
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -69,6 +71,37 @@ class Settings(BaseSettings):
         default="BAAI/bge-small-zh-v1.5",
         description="本地 sentence-transformers Embedding 模型名",
     )
+    embedding_drop_labels: list[str] = Field(
+        default=[
+            "pod",
+            "container_id",
+            "instance_id",
+            "replica_id",
+            "uid",
+            "request_id",
+            "trace_id",
+        ],
+        description="Embedding 拼接时过滤的高熵标签白名单，支持 JSON 数组或逗号分隔字符串",
+    )
+
+    @field_validator("embedding_drop_labels", mode="before")
+    @classmethod
+    def _parse_drop_labels(cls, value: Any) -> Any:
+        """兼容逗号分隔字符串形式的 ``EMBEDDING_DROP_LABELS``。
+
+        pydantic-settings 默认已支持 JSON 数组（``'["pod","container_id"]'``）；
+        本 validator 额外兜底 ``pod,container_id`` 这种裸逗号分隔格式，使环境变量
+        书写更符合运维直觉。
+        """
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            # JSON 数组形式交给 pydantic 原生解析
+            if stripped.startswith("["):
+                return value
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        return value
 
     # ===== Notifiers (阶段 6 使用) =====
     wecom_webhook_url: str = Field(default="", description="企业微信群机器人 Webhook URL")

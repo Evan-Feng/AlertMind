@@ -16,15 +16,34 @@ from alertmind import __version__
 from alertmind.api.alerts import router as alerts_router
 from alertmind.api.health import router as health_router
 from alertmind.api.webhook import router as webhook_router
+from alertmind.config import settings
 from alertmind.db.session import engine
+from alertmind.utils.embedding import Embedder
 from alertmind.utils.logger import configure_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """FastAPI 生命周期钩子：启动时初始化日志，关闭时释放 DB 连接池。"""
+    """FastAPI 生命周期钩子。
+
+    启动阶段：
+
+    1. 配置 loguru 日志输出；
+    2. 预加载本地 Embedding 模型（fail fast：模型下载/加载失败直接终止启动）
+       并挂载到 ``app.state.embedder`` 供 :func:`alertmind.api.deps.get_embedder`
+       与后台任务共享。
+
+    关闭阶段：释放数据库连接池。
+    """
     configure_logging()
     logger.info("AlertMind v{} starting", __version__)
+    # 阶段 3：启动期预加载 Embedder（fail fast）
+    logger.info("loading embedder model={}", settings.embedding_model)
+    app.state.embedder = Embedder()
+    logger.info(
+        "embedder loaded: model={} dim=512",
+        app.state.embedder.model_name,
+    )
     try:
         yield
     finally:
