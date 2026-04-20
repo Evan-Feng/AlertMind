@@ -113,6 +113,16 @@ class Alert(Base):
         nullable=True,
         doc="告警文本的向量表示（bge-small-zh-v1.5 输出维度 = 512）",
     )
+    embedding_model: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        doc="Embedding 模型名称，如 'BAAI/bge-small-zh-v1.5'；追踪模型版本，支持未来灰度升级",
+    )
+    embedded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Embedding 计算时间；模型升级后用于查询 '哪些 alert 还没用新模型 re-embed'",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
