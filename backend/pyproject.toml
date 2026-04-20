@@ -30,6 +30,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
+    "testcontainers[postgres]>=4.0",
 ]
 
 [build-system]
@@ -52,6 +53,9 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "alertmind/models/**" = ["RUF012"]
+# conftest.py 在 os.environ.setdefault 之后才导入 alertmind，以确保 pydantic-settings 读到正确的环境变量。
+# 这是刻意的模块级 import 顺序，不是 bug，故整体豁免 E402。
+"tests/conftest.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -66,3 +70,12 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+# SQLAlchemy 使用 greenlet 实现异步适配层，需要显式告知 coverage 追踪 greenlet
+# 切换，否则 await db.execute(...) 之后的代码行会被误报为未覆盖。
+concurrency = ["greenlet", "thread"]
+source = ["alertmind"]
+
+[tool.coverage.report]
+show_missing = true

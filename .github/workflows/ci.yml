@@ -44,14 +44,4 @@ jobs:
           uv run mypy --install-types --non-interactive alertmind || true
 
       - name: Pytest
-        # 阶段 1 尚无测试用例；pytest 会 exit 5（"no tests ran"），显式接受该退出码。
-        # 其它非零退出码照常失败。
-        run: |
-          set +e
-          uv run pytest tests --maxfail=1 -q
-          rc=$?
-          if [ "$rc" -eq 5 ]; then
-            echo "No tests collected (Phase 1 scaffold)"
-            exit 0
-          fi
-          exit "$rc"
+        run: uv run pytest --cov=alertmind --cov-report=term-missing -v

@@ -1,0 +1,172 @@
+{
+  "firing_single": {
+    "version": "4",
+    "groupKey": "{}:{alertname=\"HighCPUUsage\"}",
+    "truncatedAlerts": 0,
+    "status": "firing",
+    "receiver": "alertmind-webhook",
+    "groupLabels": {
+      "alertname": "HighCPUUsage"
+    },
+    "commonLabels": {
+      "alertname": "HighCPUUsage",
+      "severity": "critical",
+      "instance": "prod-web-01"
+    },
+    "commonAnnotations": {
+      "summary": "CPU usage above 90% on prod-web-01",
+      "description": "CPU usage has been above 90% for more than 5 minutes on instance prod-web-01."
+    },
+    "externalURL": "http://alertmanager.example.com",
+    "alerts": [
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "HighCPUUsage",
+          "severity": "critical",
+          "instance": "prod-web-01",
+          "job": "node-exporter"
+        },
+        "annotations": {
+          "summary": "CPU usage above 90% on prod-web-01",
+          "description": "CPU usage has been above 90% for more than 5 minutes on instance prod-web-01."
+        },
+        "startsAt": "2026-04-20T10:00:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "generatorURL": "http://prometheus.example.com/graph?g0.expr=rate%28cpu_usage%29+%3E+0.9",
+        "fingerprint": "abc123def456abc1"
+      }
+    ]
+  },
+
+  "resolved_single": {
+    "version": "4",
+    "groupKey": "{}:{alertname=\"HighCPUUsage\"}",
+    "truncatedAlerts": 0,
+    "status": "resolved",
+    "receiver": "alertmind-webhook",
+    "groupLabels": {
+      "alertname": "HighCPUUsage"
+    },
+    "commonLabels": {
+      "alertname": "HighCPUUsage",
+      "severity": "critical",
+      "instance": "prod-web-01"
+    },
+    "commonAnnotations": {
+      "summary": "CPU usage above 90% on prod-web-01",
+      "description": "CPU usage has been above 90% for more than 5 minutes on instance prod-web-01."
+    },
+    "externalURL": "http://alertmanager.example.com",
+    "alerts": [
+      {
+        "status": "resolved",
+        "labels": {
+          "alertname": "HighCPUUsage",
+          "severity": "critical",
+          "instance": "prod-web-01",
+          "job": "node-exporter"
+        },
+        "annotations": {
+          "summary": "CPU usage above 90% on prod-web-01",
+          "description": "CPU usage has been above 90% for more than 5 minutes on instance prod-web-01."
+        },
+        "startsAt": "2026-04-20T10:00:00Z",
+        "endsAt": "2026-04-20T10:30:00Z",
+        "generatorURL": "http://prometheus.example.com/graph?g0.expr=rate%28cpu_usage%29+%3E+0.9",
+        "fingerprint": "abc123def456abc1"
+      }
+    ]
+  },
+
+  "multi_firing": {
+    "version": "4",
+    "groupKey": "{}:{alertname=\"DiskSpaceLow\"}",
+    "truncatedAlerts": 0,
+    "status": "firing",
+    "receiver": "alertmind-webhook",
+    "groupLabels": {
+      "alertname": "DiskSpaceLow"
+    },
+    "commonLabels": {
+      "alertname": "DiskSpaceLow",
+      "severity": "warning"
+    },
+    "commonAnnotations": {
+      "summary": "Disk space below 20%"
+    },
+    "externalURL": "http://alertmanager.example.com",
+    "alerts": [
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "DiskSpaceLow",
+          "severity": "warning",
+          "instance": "prod-db-01",
+          "mountpoint": "/data"
+        },
+        "annotations": {
+          "summary": "Disk space below 20% on prod-db-01:/data",
+          "description": "Disk space on prod-db-01 mountpoint /data is at 15%."
+        },
+        "startsAt": "2026-04-20T09:00:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "generatorURL": "http://prometheus.example.com/graph?g0.expr=disk_free+%3C+0.2",
+        "fingerprint": "disk001prod0101"
+      },
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "DiskSpaceLow",
+          "severity": "warning",
+          "instance": "prod-db-02",
+          "mountpoint": "/var/log"
+        },
+        "annotations": {
+          "summary": "Disk space below 20% on prod-db-02:/var/log",
+          "description": "Disk space on prod-db-02 mountpoint /var/log is at 12%."
+        },
+        "startsAt": "2026-04-20T09:05:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "generatorURL": "http://prometheus.example.com/graph?g0.expr=disk_free+%3C+0.2",
+        "fingerprint": "disk002prod0202"
+      },
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "DiskSpaceLow",
+          "severity": "critical",
+          "instance": "prod-db-03",
+          "mountpoint": "/"
+        },
+        "annotations": {
+          "summary": "Disk space critically low on prod-db-03:/",
+          "description": "Disk space on prod-db-03 root mountpoint is at 5%."
+        },
+        "startsAt": "2026-04-20T09:10:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "generatorURL": "http://prometheus.example.com/graph?g0.expr=disk_free+%3C+0.2",
+        "fingerprint": "disk003prod0303"
+      }
+    ]
+  },
+
+  "minimal_valid": {
+    "version": "4",
+    "groupKey": "{}:{}",
+    "status": "firing",
+    "receiver": "default",
+    "alerts": [
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "MinimalAlert"
+        },
+        "annotations": {},
+        "startsAt": "2026-04-20T08:00:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "fingerprint": "minimalfp000001"
+      }
+    ]
+  }
+}
