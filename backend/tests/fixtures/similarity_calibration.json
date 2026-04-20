@@ -1,0 +1,215 @@
+{
+  "description": "阶段 3 Wave 2.5 阈值校准 fixture：15 对中文运维告警，用于人工判断 0.85 默认阈值是否合理。label 取值：same / unrelated / ambiguous。",
+  "pairs": [
+    {
+      "label": "same",
+      "note": "同一 alertname，仅 instance/node 不同",
+      "a": {
+        "alertname": "HighCPUUsage",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-1", "namespace": "kube-system", "job": "node-exporter"},
+        "annotations": {"summary": "节点 CPU 使用率超过 90% 持续 5 分钟", "description": "node-1 负载异常"}
+      },
+      "b": {
+        "alertname": "HighCPUUsage",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-2", "namespace": "kube-system", "job": "node-exporter"},
+        "annotations": {"summary": "节点 CPU 使用率超过 90% 持续 5 分钟", "description": "node-2 负载异常"}
+      }
+    },
+    {
+      "label": "same",
+      "note": "同一 alertname，不同业务 service 的抓取缺失",
+      "a": {
+        "alertname": "PrometheusJobMissing",
+        "labels": {"cluster": "prod", "severity": "warning", "job": "api-gateway", "namespace": "ingress"},
+        "annotations": {"summary": "Prometheus 抓取任务缺失：目标无响应", "description": "api-gateway 的抓取目标已超过 10 分钟未返回"}
+      },
+      "b": {
+        "alertname": "PrometheusJobMissing",
+        "labels": {"cluster": "prod", "severity": "warning", "job": "user-service", "namespace": "app"},
+        "annotations": {"summary": "Prometheus 抓取任务缺失：目标无响应", "description": "user-service 的抓取目标已超过 10 分钟未返回"}
+      }
+    },
+    {
+      "label": "same",
+      "note": "同一 alertname，不同挂载路径的磁盘告警",
+      "a": {
+        "alertname": "DiskFull",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-3", "mountpoint": "/var/log", "fstype": "ext4"},
+        "annotations": {"summary": "磁盘使用率超过 90%，剩余空间不足", "description": "node-3 的 /var/log 分区即将写满"}
+      },
+      "b": {
+        "alertname": "DiskFull",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-5", "mountpoint": "/data", "fstype": "xfs"},
+        "annotations": {"summary": "磁盘使用率超过 90%，剩余空间不足", "description": "node-5 的 /data 分区即将写满"}
+      }
+    },
+    {
+      "label": "same",
+      "note": "同一 alertname，不同 pod 的 CrashLoop",
+      "a": {
+        "alertname": "PodCrashLooping",
+        "labels": {"cluster": "prod", "severity": "critical", "namespace": "app", "pod": "order-service-7f8d9-abc", "deployment": "order-service"},
+        "annotations": {"summary": "Pod 反复崩溃重启（CrashLoopBackOff）", "description": "order-service 的 Pod 最近 15 分钟内重启超过 5 次"}
+      },
+      "b": {
+        "alertname": "PodCrashLooping",
+        "labels": {"cluster": "prod", "severity": "critical", "namespace": "app", "pod": "order-service-7f8d9-xyz", "deployment": "order-service"},
+        "annotations": {"summary": "Pod 反复崩溃重启（CrashLoopBackOff）", "description": "order-service 的 Pod 最近 15 分钟内重启超过 5 次"}
+      }
+    },
+    {
+      "label": "same",
+      "note": "同一 alertname，不同 deployment 的副本数不一致",
+      "a": {
+        "alertname": "KubeDeploymentReplicasMismatch",
+        "labels": {"cluster": "prod", "severity": "warning", "namespace": "app", "deployment": "payment-service"},
+        "annotations": {"summary": "Deployment 实际副本数与期望副本数不一致", "description": "payment-service 期望 3 副本，实际可用 1 副本"}
+      },
+      "b": {
+        "alertname": "KubeDeploymentReplicasMismatch",
+        "labels": {"cluster": "prod", "severity": "warning", "namespace": "app", "deployment": "notification-service"},
+        "annotations": {"summary": "Deployment 实际副本数与期望副本数不一致", "description": "notification-service 期望 5 副本，实际可用 2 副本"}
+      }
+    },
+    {
+      "label": "unrelated",
+      "note": "CPU vs 磁盘，完全不同根因",
+      "a": {
+        "alertname": "HighCPUUsage",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-1", "namespace": "kube-system"},
+        "annotations": {"summary": "节点 CPU 使用率超过 90% 持续 5 分钟", "description": "node-1 负载异常"}
+      },
+      "b": {
+        "alertname": "DiskFull",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-10", "mountpoint": "/"},
+        "annotations": {"summary": "磁盘使用率超过 90%，剩余空间不足", "description": "node-10 的根分区即将写满"}
+      }
+    },
+    {
+      "label": "unrelated",
+      "note": "证书到期 vs 请求延迟",
+      "a": {
+        "alertname": "CertificateExpiring",
+        "labels": {"cluster": "prod", "severity": "warning", "service": "api-gateway", "domain": "api.example.com"},
+        "annotations": {"summary": "TLS 证书将在 14 天内过期", "description": "api.example.com 的证书剩余有效期不足 14 天"}
+      },
+      "b": {
+        "alertname": "HighRequestLatency",
+        "labels": {"cluster": "prod", "severity": "warning", "service": "checkout-service", "namespace": "app"},
+        "annotations": {"summary": "HTTP 请求 P99 延迟超过 2 秒", "description": "checkout-service 最近 10 分钟的 P99 延迟恶化"}
+      }
+    },
+    {
+      "label": "unrelated",
+      "note": "节点内存压力 vs ES 集群黄色",
+      "a": {
+        "alertname": "NodeMemoryPressure",
+        "labels": {"cluster": "prod", "severity": "warning", "instance": "node-7", "namespace": "kube-system"},
+        "annotations": {"summary": "节点内存压力（MemoryPressure）条件为 True", "description": "node-7 可用内存不足，kubelet 标记 MemoryPressure"}
+      },
+      "b": {
+        "alertname": "ElasticsearchClusterYellow",
+        "labels": {"cluster": "prod", "severity": "warning", "service": "elasticsearch", "namespace": "data"},
+        "annotations": {"summary": "Elasticsearch 集群状态为 yellow", "description": "存在未分配的副本分片，集群可写但冗余度下降"}
+      }
+    },
+    {
+      "label": "unrelated",
+      "note": "Kafka 消费者 lag vs 数据库连接池耗尽",
+      "a": {
+        "alertname": "KafkaConsumerLagHigh",
+        "labels": {"cluster": "prod", "severity": "warning", "topic": "order-events", "consumer_group": "order-processor"},
+        "annotations": {"summary": "Kafka 消费组积压超过 10 万条消息", "description": "order-processor 消费速度跟不上生产速度"}
+      },
+      "b": {
+        "alertname": "DatabaseConnectionPoolExhausted",
+        "labels": {"cluster": "prod", "severity": "critical", "service": "user-service", "database": "users"},
+        "annotations": {"summary": "数据库连接池已耗尽，新请求排队等待", "description": "user-service 连接池 100 个连接全部占用"}
+      }
+    },
+    {
+      "label": "unrelated",
+      "note": "Ingress 5xx 突增 vs NTP 时钟漂移",
+      "a": {
+        "alertname": "IngressHighErrorRate",
+        "labels": {"cluster": "prod", "severity": "critical", "ingress": "main", "namespace": "ingress"},
+        "annotations": {"summary": "Ingress 5xx 错误率超过 5%", "description": "最近 5 分钟 5xx 响应占比异常升高"}
+      },
+      "b": {
+        "alertname": "NodeClockSkew",
+        "labels": {"cluster": "prod", "severity": "warning", "instance": "node-12", "namespace": "kube-system"},
+        "annotations": {"summary": "节点系统时钟漂移超过 500 毫秒", "description": "node-12 的 NTP 同步失败，时钟偏离 UTC"}
+      }
+    },
+    {
+      "label": "ambiguous",
+      "note": "同名 CPU 告警但一个是节点级一个是 Pod 级，语义重合但边界模糊",
+      "a": {
+        "alertname": "HighCPUUsage",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-1", "namespace": "kube-system", "scope": "node"},
+        "annotations": {"summary": "节点 CPU 使用率超过 90% 持续 5 分钟", "description": "node-1 整机负载异常"}
+      },
+      "b": {
+        "alertname": "HighCPUUsage",
+        "labels": {"cluster": "prod", "severity": "warning", "namespace": "app", "deployment": "search-service", "scope": "pod"},
+        "annotations": {"summary": "Pod CPU 使用率超过 limit 的 85%", "description": "search-service 的某个 Pod CPU 持续接近 limit"}
+      }
+    },
+    {
+      "label": "ambiguous",
+      "note": "CrashLooping vs 频繁重启：不同 alertname 但可能同根因",
+      "a": {
+        "alertname": "PodCrashLooping",
+        "labels": {"cluster": "prod", "severity": "critical", "namespace": "app", "deployment": "inventory-service"},
+        "annotations": {"summary": "Pod 反复崩溃重启（CrashLoopBackOff）", "description": "inventory-service Pod 最近 15 分钟内重启超过 5 次"}
+      },
+      "b": {
+        "alertname": "PodRestartsTooOften",
+        "labels": {"cluster": "prod", "severity": "warning", "namespace": "app", "deployment": "inventory-service"},
+        "annotations": {"summary": "Pod 在过去 1 小时内重启次数过多", "description": "inventory-service Pod 1 小时内重启 3 次以上"}
+      }
+    },
+    {
+      "label": "ambiguous",
+      "note": "同名延迟告警但 service 完全不同",
+      "a": {
+        "alertname": "HighRequestLatency",
+        "labels": {"cluster": "prod", "severity": "warning", "service": "checkout-service", "namespace": "app"},
+        "annotations": {"summary": "HTTP 请求 P99 延迟超过 2 秒", "description": "checkout-service 最近 10 分钟的 P99 延迟恶化"}
+      },
+      "b": {
+        "alertname": "HighRequestLatency",
+        "labels": {"cluster": "prod", "severity": "warning", "service": "search-service", "namespace": "app"},
+        "annotations": {"summary": "HTTP 请求 P99 延迟超过 2 秒", "description": "search-service 最近 10 分钟的 P99 延迟恶化"}
+      }
+    },
+    {
+      "label": "ambiguous",
+      "note": "同名磁盘告警但一个是日志分区一个是系统启动分区，影响面差异极大",
+      "a": {
+        "alertname": "DiskFull",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-3", "mountpoint": "/var/log", "fstype": "ext4"},
+        "annotations": {"summary": "磁盘使用率超过 90%，剩余空间不足", "description": "node-3 的 /var/log 分区即将写满，可能导致应用写日志失败"}
+      },
+      "b": {
+        "alertname": "DiskFull",
+        "labels": {"cluster": "prod", "severity": "critical", "instance": "node-3", "mountpoint": "/boot", "fstype": "ext2"},
+        "annotations": {"summary": "磁盘使用率超过 90%，剩余空间不足", "description": "node-3 的 /boot 分区即将写满，后续内核升级会失败"}
+      }
+    },
+    {
+      "label": "ambiguous",
+      "note": "内存告警 vs OOMKilled：不同 alertname 但同一内存根因链",
+      "a": {
+        "alertname": "MemoryUsageHigh",
+        "labels": {"cluster": "prod", "severity": "warning", "namespace": "app", "deployment": "analytics-service"},
+        "annotations": {"summary": "Pod 内存使用率超过 limit 的 85%", "description": "analytics-service 的 Pod 持续逼近内存上限"}
+      },
+      "b": {
+        "alertname": "OOMKilled",
+        "labels": {"cluster": "prod", "severity": "critical", "namespace": "app", "deployment": "analytics-service"},
+        "annotations": {"summary": "容器被 OOMKilled 终止", "description": "analytics-service 的容器因超出内存 limit 被 kernel 强制杀死"}
+      }
+    }
+  ]
+}
