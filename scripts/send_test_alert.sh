@@ -121,7 +121,9 @@ else
 fi
 
 # groupKey 保证同一脚本不同次调用不聚合在一起
-GROUP_KEY="{}/{alertname=\"TestAlert\"}:{alertname=\"TestAlert\",fingerprint=\"${FINGERPRINT}\"}"
+# 注意：Alertmanager 真实 groupKey 会带裸双引号（如 {alertname="x"}），直接注入 JSON 会破坏
+# 结构；此处只需一个唯一的不透明字符串，故用 fingerprint 拼接，避免转义麻烦
+GROUP_KEY="testalert-${FINGERPRINT}"
 
 # ---------- 打印发送摘要 ----------
 echo "==> Sending test alert"
