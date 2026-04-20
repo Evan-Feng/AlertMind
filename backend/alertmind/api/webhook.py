@@ -15,15 +15,17 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alertmind.api.deps import get_db
+from alertmind.core.aggregator import safe_aggregate
 from alertmind.models.alert import Alert, AlertSeverity, AlertStatus
 from alertmind.schemas.webhook import AlertmanagerAlert, AlertmanagerWebhookPayload
+from alertmind.utils.embedding import Embedder
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 
@@ -88,29 +90,36 @@ def _build_alert_values(alert: AlertmanagerAlert, raw_payload: dict[str, Any]) -
     }
 
 
-async def _upsert_alert(session: AsyncSession, values: dict[str, Any]) -> None:
-    """按 ``fingerprint`` 冲突策略 upsert 一条 alert。
+async def _upsert_alert(session: AsyncSession, values: dict[str, Any]) -> int:
+    """按 ``fingerprint`` 冲突策略 upsert 一条 alert，并返回该行主键 ``id``。
 
     冲突时只覆盖可变字段（status/severity/alertname/ends_at/generator_url/labels/
     annotations/raw_payload/updated_at）；不动 ``id`` / ``fingerprint`` /
-    ``starts_at`` / ``created_at`` / ``incident_id`` / ``embedding``。
+    ``starts_at`` / ``created_at`` / ``incident_id`` / ``embedding`` /
+    ``embedding_model`` / ``embedded_at``。
+
+    :returns: 本行最终 ``alerts.id``；PostgreSQL 对 ``ON CONFLICT DO UPDATE``
+        的 ``RETURNING`` 语义保证无论是新插入还是 update 都能拿到 id，
+        供后续 BackgroundTasks 做异步聚合。
     """
-    stmt = pg_insert(Alert).values(**values)
-    stmt = stmt.on_conflict_do_update(
+    insert_stmt = pg_insert(Alert).values(**values)
+    upsert_stmt = insert_stmt.on_conflict_do_update(
         index_elements=["fingerprint"],
         set_={
-            "status": stmt.excluded.status,
-            "severity": stmt.excluded.severity,
-            "alertname": stmt.excluded.alertname,
-            "ends_at": stmt.excluded.ends_at,
-            "generator_url": stmt.excluded.generator_url,
-            "labels": stmt.excluded.labels,
-            "annotations": stmt.excluded.annotations,
-            "raw_payload": stmt.excluded.raw_payload,
+            "status": insert_stmt.excluded.status,
+            "severity": insert_stmt.excluded.severity,
+            "alertname": insert_stmt.excluded.alertname,
+            "ends_at": insert_stmt.excluded.ends_at,
+            "generator_url": insert_stmt.excluded.generator_url,
+            "labels": insert_stmt.excluded.labels,
+            "annotations": insert_stmt.excluded.annotations,
+            "raw_payload": insert_stmt.excluded.raw_payload,
             "updated_at": func.now(),
         },
-    )
-    await session.execute(stmt)
+    ).returning(Alert.id)
+    result = await session.execute(upsert_stmt)
+    alert_id: int = result.scalar_one()
+    return alert_id
 
 
 def _enforce_content_length(request: Request) -> None:
@@ -145,13 +154,21 @@ def _enforce_content_length(request: Request) -> None:
 )
 async def receive_alertmanager_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: DbDep,
 ) -> dict[str, Any]:
     """接收 Alertmanager v4 webhook，upsert 所有 alerts 到数据库。
 
-    :param request: 原始 FastAPI Request，用于读取 ``Content-Length`` 头做体量守卫
-    :param db: 数据库会话（依赖注入）
-    :returns: ``{"received": N, "upserted": N}``，N 为本次处理的 alert 数量
+    同步路径只做 upsert；embedding + 聚合由 :func:`alertmind.core.aggregator.safe_aggregate`
+    通过 :class:`fastapi.BackgroundTasks` 异步触发，保证 Alertmanager 的重试窗口
+    ≤ 200 ms（不等模型推理）。
+
+    :param request: 原始 FastAPI Request，用于读取 ``Content-Length`` 头做体量守卫，
+        以及访问 ``app.state.embedder`` 单例。
+    :param background_tasks: FastAPI 注入的后台任务队列；本 handler 把聚合工作
+        转给它执行。
+    :param db: 数据库会话（依赖注入）。
+    :returns: ``{"received": N, "upserted": N, "aggregation_status": "queued"}``。
     :raises HTTPException:
         - 413 payload 超过 10 MiB
         - 422 payload 解析失败（由 FastAPI 自动产出）
@@ -179,12 +196,12 @@ async def receive_alertmanager_webhook(
         list(raw.get("alerts") or []) if isinstance(raw, dict) else []
     )
 
-    upserted = 0
+    alert_ids: list[int] = []
     for index, alert in enumerate(payload.alerts):
         raw_alert = raw_alerts[index] if index < len(raw_alerts) else {}
         values = _build_alert_values(alert, raw_alert)
         try:
-            await _upsert_alert(db, values)
+            alert_id = await _upsert_alert(db, values)
         except Exception as exc:
             logger.error(
                 "webhook upsert failed: fingerprint={} err={!r}",
@@ -196,7 +213,7 @@ async def receive_alertmanager_webhook(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="failed to persist alert",
             ) from exc
-        upserted += 1
+        alert_ids.append(alert_id)
 
     try:
         await db.commit()
@@ -208,13 +225,43 @@ async def receive_alertmanager_webhook(
             detail="failed to commit alerts",
         ) from exc
 
+    upserted = len(alert_ids)
+
+    # 提交给后台任务：embed + 聚合。绝不能在同步路径做（会让 Alertmanager 超时重试）。
+    embedder = _get_app_embedder(request)
+    background_tasks.add_task(safe_aggregate, alert_ids, embedder)
+
     logger.info(
-        "webhook accepted: group_key={} received={} upserted={}",
+        "webhook accepted: group_key={} received={} upserted={} queued_for_aggregate={}",
         payload.group_key,
         len(payload.alerts),
         upserted,
+        len(alert_ids),
     )
-    return {"received": len(payload.alerts), "upserted": upserted}
+    return {
+        "received": len(payload.alerts),
+        "upserted": upserted,
+        "aggregation_status": "queued",
+    }
+
+
+def _get_app_embedder(request: Request) -> Embedder:
+    """从 ``app.state`` 取启动期加载的全局 Embedder 实例。
+
+    不走依赖注入（:func:`alertmind.api.deps.get_embedder`）是为了让 webhook
+    路由对 embedder 的获取逻辑与其他依赖解耦——BackgroundTasks 需要直接持有
+    实例（异步路径没有 Request 可用），因此在 handler 里显式取出再透传给
+    :func:`alertmind.core.aggregator.safe_aggregate`。
+
+    注：未显式校验 ``isinstance(embedder, Embedder)``，是为了允许测试套件
+    注入 duck-typed 替身（具备 ``embed`` / ``model_name``），避免每个测试
+    都要真实加载 400 MB 的 sentence-transformers 权重。生产路径由 lifespan
+    钩子保证写入的就是真实 Embedder。
+    """
+    embedder: Embedder | None = getattr(request.app.state, "embedder", None)
+    if embedder is None:
+        raise RuntimeError("embedder not initialized; lifespan hook missing?")
+    return embedder
 
 
 def _preview(raw: Any) -> str:
