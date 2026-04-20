@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from alertmind.schemas.alert import AlertListFilter, AlertRead
 from alertmind.schemas.common import Page
+from alertmind.schemas.incident import IncidentDetail, IncidentRead
 from alertmind.schemas.webhook import AlertmanagerAlert, AlertmanagerWebhookPayload
 
 __all__ = [
@@ -15,5 +16,7 @@ __all__ = [
     "AlertRead",
     "AlertmanagerAlert",
     "AlertmanagerWebhookPayload",
+    "IncidentDetail",
+    "IncidentRead",
     "Page",
 ]
