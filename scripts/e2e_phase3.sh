@@ -86,6 +86,7 @@ done
 
 WEBHOOK_URL="$BASE_URL/api/v1/webhook/alertmanager"
 INCIDENTS_URL="$BASE_URL/api/v1/incidents"
+ALERTS_URL="$BASE_URL/api/v1/alerts"
 HEALTH_URL="$BASE_URL/health/ready"
 
 # curl 默认参数：--noproxy '*' 防 SOCKS / HTTP 代理对 localhost 的干扰
@@ -106,6 +107,14 @@ echo
 # count_incidents: 返回当前 incidents 总数
 count_incidents() {
     "${CURL[@]}" "$INCIDENTS_URL?page=1&page_size=1" | jq -r '.total'
+}
+
+# fetch_incident_ids_by_alertname：用 alerts API 精准过滤，返回某个 alertname 下
+# 所有 alert 的 incident_id（一行一个；NULL 会被 jq 打印成字符串 "null"）。
+fetch_incident_ids_by_alertname() {
+    local name="$1"
+    "${CURL[@]}" "$ALERTS_URL?alertname=${name}&page=1&page_size=20" \
+        | jq -r '.items[].incident_id'
 }
 
 # count_orphan_alerts: 返回 incident_id IS NULL 的 alert 数
@@ -192,12 +201,17 @@ BEFORE_COUNT="$(count_incidents)"
 echo "==> [Step 0] 初始 incidents 数量: $BEFORE_COUNT"
 echo
 
-# ---------- Step 1: 发 5 条相似告警（HighCPUUsage on node-1..5） ----------
-echo "==> [Step 1] 发送 5 条相似告警 (HighCPUUsage on node-1..5)"
+# ---------- Step 1: 发 5 条相似告警（E2E-<RUN_ID>-HighCPU on node-1..5）----------
+# 关键：alertname 拼入 RUN_ID 保证每次运行产生全新的 embedding 文本，
+# 避免归入历史测试遗留的同名 incident，使"新增 incident +2"的断言在脏环境下也成立
 RUN_ID="$(date -u +%Y%m%d%H%M%S)"
+CPU_NAME="E2E${RUN_ID}HighCPU"
+DISK_NAME="E2E${RUN_ID}DiskFull"
+
+echo "==> [Step 1] 发送 5 条相似告警 (${CPU_NAME} on node-1..5)"
 for i in 1 2 3 4 5; do
     send_alert \
-        "HighCPUUsage" \
+        "$CPU_NAME" \
         "critical" \
         "node-${i}" \
         "节点 CPU 使用率超过 90% 持续 5 分钟" \
@@ -206,10 +220,10 @@ for i in 1 2 3 4 5; do
 done
 echo
 
-# ---------- Step 2: 发 1 条无关告警（DiskFull on db-master-1） ----------
-echo "==> [Step 2] 发送 1 条无关告警 (DiskFull on db-master-1)"
+# ---------- Step 2: 发 1 条无关告警（E2E-<RUN_ID>-DiskFull on db-master-1） ----------
+echo "==> [Step 2] 发送 1 条无关告警 (${DISK_NAME} on db-master-1)"
 send_alert \
-    "DiskFull" \
+    "$DISK_NAME" \
     "warning" \
     "db-master-1" \
     "数据库主机磁盘使用率达到 95%" \
@@ -222,39 +236,83 @@ echo "==> [Step 3] 等待 BackgroundTasks 聚合 (${WAIT_AGGREGATION_SECONDS}s)"
 sleep "$WAIT_AGGREGATION_SECONDS"
 echo
 
-# ---------- Step 4: 断言增量 ----------
-AFTER_COUNT="$(count_incidents)"
-DELTA=$((AFTER_COUNT - BEFORE_COUNT))
-echo "==> [Step 4] incidents 增量断言"
-echo "    before=$BEFORE_COUNT after=$AFTER_COUNT delta=$DELTA"
+# ---------- Step 4: 按 alertname 精准断言聚合行为 ----------
+# 不依赖"incidents 总数增量"——生产环境里相似 alertname 可能被 bge 判定
+# 相似度 >0.85 归入老 incident，导致总数不变但 alert_count 增长。
+# 这里直接查 alerts API（精准按 alertname 过滤），判断：
+#   1. 5 条 sim alert 的 incident_id 全部相同且非 null（聚合成一个）
+#   2. 1 条 unrelated alert 的 incident_id 非 null（不孤儿）且不等于 sim 组
+echo "==> [Step 4] 按 alertname 精准断言聚合行为"
 
-if [[ "$DELTA" -ne 2 ]]; then
-    echo "Error: 期望新增 2 个 incident（5 相似聚合 1 + 1 无关 1），实际新增 $DELTA" >&2
-    echo "当前最新 incidents：" >&2
-    "${CURL[@]}" "$INCIDENTS_URL?page=1&page_size=10" | jq '.items[] | {id, title, alert_count, severity}' >&2
+SIM_IIDS="$(fetch_incident_ids_by_alertname "$CPU_NAME")"
+UNRELATED_IIDS="$(fetch_incident_ids_by_alertname "$DISK_NAME")"
+
+SIM_COUNT="$(printf '%s\n' "$SIM_IIDS" | grep -cv '^$' || true)"
+UNRELATED_COUNT="$(printf '%s\n' "$UNRELATED_IIDS" | grep -cv '^$' || true)"
+
+if [[ "$SIM_COUNT" -ne 5 ]]; then
+    echo "Error: ${CPU_NAME} 应有 5 条 alert，实际 ${SIM_COUNT}" >&2
     exit 3
 fi
-echo "    PASS: 新增 incident 数量 = 2"
+if [[ "$UNRELATED_COUNT" -ne 1 ]]; then
+    echo "Error: ${DISK_NAME} 应有 1 条 alert，实际 ${UNRELATED_COUNT}" >&2
+    exit 3
+fi
+
+SIM_UNIQUE_IIDS="$(printf '%s\n' "$SIM_IIDS" | sort -u)"
+SIM_UNIQUE_COUNT="$(printf '%s\n' "$SIM_UNIQUE_IIDS" | grep -cv '^$' || true)"
+
+if [[ "$SIM_UNIQUE_COUNT" -ne 1 ]]; then
+    echo "Error: 5 条相似 alert 的 incident_id 应当完全相同（聚合成一个），实际 unique incident_id 数量=${SIM_UNIQUE_COUNT}" >&2
+    echo "    各 alert 的 incident_id: $(printf '%s ' "$SIM_IIDS")" >&2
+    exit 3
+fi
+
+if [[ "$SIM_UNIQUE_IIDS" == "null" ]]; then
+    echo "Error: 5 条相似 alert 的 incident_id 全为 null（聚合未生效 / 全为孤儿）" >&2
+    exit 3
+fi
+
+SIM_IID="$SIM_UNIQUE_IIDS"
+UNRELATED_IID="$UNRELATED_IIDS"
+
+if [[ "$UNRELATED_IID" == "null" ]]; then
+    echo "Error: 无关 alert (${DISK_NAME}) 的 incident_id 为 null（孤儿）" >&2
+    exit 3
+fi
+
+if [[ "$UNRELATED_IID" == "$SIM_IID" ]]; then
+    echo "Error: 无关 alert 应开独立 incident，但被归入 sim 组 incident_id=${SIM_IID}" >&2
+    exit 3
+fi
+
+echo "    PASS: 5 条 ${CPU_NAME} 全部归入 incident_id=${SIM_IID}"
+echo "    PASS: 1 条 ${DISK_NAME} 归入独立 incident_id=${UNRELATED_IID}"
 echo
 
-# ---------- Step 5: 断言最新两个 incident 的 alert_count 排序为 [1, 5] ----------
-echo "==> [Step 5] 最新两个 incident 的 alert_count 排序断言"
-TOP_COUNTS_SORTED="$(
-    "${CURL[@]}" "$INCIDENTS_URL?page=1&page_size=2" \
-        | jq -r '.items[].alert_count' \
-        | sort -n \
-        | tr '\n' ',' \
-        | sed 's/,$//'
-)"
-echo "    最新两个 incident.alert_count（升序）: $TOP_COUNTS_SORTED"
+# ---------- Step 5: alert_count 断言 ----------
+echo "==> [Step 5] 目标 incident 的 alert_count 断言"
+SIM_INCIDENT_JSON="$("${CURL[@]}" "$INCIDENTS_URL/$SIM_IID")"
+UNRELATED_INCIDENT_JSON="$("${CURL[@]}" "$INCIDENTS_URL/$UNRELATED_IID")"
+SIM_AC="$(printf '%s' "$SIM_INCIDENT_JSON" | jq -r '.alert_count')"
+UNRELATED_AC="$(printf '%s' "$UNRELATED_INCIDENT_JSON" | jq -r '.alert_count')"
+echo "    sim incident (id=$SIM_IID) alert_count=$SIM_AC"
+echo "    unrelated incident (id=$UNRELATED_IID) alert_count=$UNRELATED_AC"
 
-if [[ "$TOP_COUNTS_SORTED" != "1,5" ]]; then
-    echo "Error: 期望最新两个 incident.alert_count 为 [1, 5]，实际 [$TOP_COUNTS_SORTED]" >&2
-    echo "完整列表：" >&2
-    "${CURL[@]}" "$INCIDENTS_URL?page=1&page_size=2" | jq '.items[] | {id, title, alert_count, severity}' >&2
+# 最小合理下限：sim 组 alert_count 至少 ≥ 5（本次 5 条 + 可能的历史）；unrelated 至少 ≥ 1
+if [[ "$SIM_AC" -lt 5 ]]; then
+    echo "Error: sim incident.alert_count 应 >= 5，实际 $SIM_AC" >&2
     exit 3
 fi
-echo "    PASS: 5 条相似聚合为 alert_count=5；1 条无关独立为 alert_count=1"
+if [[ "$UNRELATED_AC" -lt 1 ]]; then
+    echo "Error: unrelated incident.alert_count 应 >= 1，实际 $UNRELATED_AC" >&2
+    exit 3
+fi
+echo "    PASS"
+
+# 可选：报告 incident 总数 delta（仅作观测，不断言）
+AFTER_COUNT="$(count_incidents)"
+echo "    incidents 总数: before=$BEFORE_COUNT after=$AFTER_COUNT delta=$((AFTER_COUNT - BEFORE_COUNT))"
 echo
 
 # ---------- Step 6: 孤儿告警检查（warn-only，不 fail） ----------
@@ -271,8 +329,7 @@ echo
 
 # ---------- 结果 ----------
 echo "✅ 阶段 3 验收通过"
-echo "    新增 incidents: $DELTA"
-echo "    相似聚合: 5 → 1"
-echo "    无关隔离: 1 → 1"
+echo "    相似聚合: 5 条 ${CPU_NAME} → incident_id=${SIM_IID} (alert_count=${SIM_AC})"
+echo "    无关隔离: 1 条 ${DISK_NAME} → incident_id=${UNRELATED_IID} (alert_count=${UNRELATED_AC})"
 echo "    详细：curl '$INCIDENTS_URL?page=1&page_size=10' | jq"
 exit 0
