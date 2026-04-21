@@ -110,6 +110,9 @@
 - 每个阶段至少一个 commit
 - 阶段内部的子功能可单独 commit
 - 绝不把多个无关变更塞进同一个 commit
+- **Wave 完成 review 通过后必须当场 commit**，不攒多个 Wave 的改动（攒了会让 working tree 变成多 Wave 混合态，难以回溯）
+- **Subagent 回执到达后，主 Agent 的汇报结构必须包含「Commit 方案」section**（subject + body 草稿），由用户批准后立即执行；不要等用户主动想起来 commit
+- 例外：Wave 是"观察/调研/冒烟"类无代码变更的，可以不 commit
 
 ---
 
@@ -137,6 +140,7 @@
 3. **禁止引入 PRD §11「不要做的事」清单里的任何东西**
 4. **禁止把 `.env` / 密钥 / API Key 提交进 git**
 5. **禁止在 MVP 阶段做 PRD 明确放到 v2 的功能**（用户系统、对话追问、自动修复执行、Helm Chart 等）
+6. **禁止主 Agent 主动写 `~/.claude/.../memory/` 下的任何文件**。memory 是 user-level 永久状态，动它的标准等同于动 `~/.bashrc`：必须用户明确说"请把 XXX 记进 memory"才写；写之前必须先把完整内容贴出来让用户 review，不是写完再"静默通知"。项目规范进 `CLAUDE.md`，环境观察进 `docs/`，阶段进度 `git log` 即事实。
 
 ---
 
