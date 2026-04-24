@@ -172,4 +172,4 @@ starts_at = (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00
 
 ## 8. 未完成事项（TODO）
 
-- [ ] **阶段 1 启动时添加 MIT `LICENSE` 文件**（由 `tech-writer` 起草 MIT 模板，主 Agent 检查并 commit）
+（当前无；新 TODO 出现时在此追加。历史追溯：`LICENSE` 在 `eb409ba` 已落地，条目于 2026-04-24 勾掉。）
