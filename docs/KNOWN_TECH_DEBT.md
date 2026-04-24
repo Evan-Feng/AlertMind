@@ -123,3 +123,24 @@
 - **计划偿还**：阶段 7 代码质量打磨，或守门员首次出现误伤时立即处理
 
 这条 TD 本身不阻塞任何当前功能，仅记录架构限制。
+
+## TD-007: GitHub Actions Node.js 20 deprecation
+
+- **位置**：`.github/workflows/ci.yml` 使用的 actions
+  - `actions/checkout@v4`
+  - `astral-sh/setup-uv@v4`
+- **来源**：GitHub 平台通知（阶段 4 W1 CI run 首次出现 deprecation warning，run 24884116865）
+- **现状**：
+  - 两个 action 底层运行在 Node.js 20
+  - 2026-06-02 起 GitHub 强制 Node.js 24
+  - 2026-09-16 后 Node.js 20 runner 完全下线
+- **影响**：
+  - 若未处理，2026-06-02 后 CI 可能强制失败
+  - 硬切日在阶段 4-7 开发窗口内（5 周内）
+- **修复方向**：
+  - 升级到支持 Node 24 的 action 版本（等 upstream 发布 v5）
+  - 或锁定到 `@main` 追随 upstream
+- **计划偿还**：
+  - 硬切日前（2026-06-02 前）必须完成
+  - 建议阶段 6/7 期间处理，避免在阶段 4 LLM 工作期间分心
+- **优先级**：中等（非立即，但有 deadline）
