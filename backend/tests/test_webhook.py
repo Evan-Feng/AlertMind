@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from httpx import AsyncClient
@@ -18,6 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from alertmind.models.alert import Alert
 
 WEBHOOK_URL = "/api/v1/webhook/alertmanager"
+
+
+def _recent_starts_at() -> str:
+    """相对 now 的 ISO 时间戳（now - 1h，带 'Z' 后缀）。
+
+    避免测试用绝对日期作 alert.starts_at，防止 aggregator 24h 窗口形成时间炸弹。
+    """
+    return (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
 
 
 # ---------------------------------------------------------------------------
@@ -42,11 +51,16 @@ def _make_payload(
     status: str = "firing",
     alertname: str = "TestAlert",
     severity: str = "warning",
-    starts_at: str = "2026-04-20T10:00:00Z",
+    starts_at: str | None = None,
     ends_at: str = "0001-01-01T00:00:00Z",
     group_key: str = '{}:{alertname="TestAlert"}',
 ) -> dict[str, Any]:
-    """构造最小合法 Alertmanager v4 payload，便于各测试定制字段。"""
+    """构造最小合法 Alertmanager v4 payload，便于各测试定制字段。
+
+    ``starts_at`` 省略时使用 now-1h，保证 aggregator 24h 窗口不误判为窗口外。
+    """
+    if starts_at is None:
+        starts_at = _recent_starts_at()
     return {
         "version": "4",
         "groupKey": group_key,
@@ -285,7 +299,7 @@ async def test_webhook_missing_required_fields_returns_422(
                 "status": "firing",
                 "labels": {"alertname": "MissingFieldsAlert"},
                 "annotations": {},
-                "startsAt": "2026-04-20T10:00:00Z",
+                "startsAt": _recent_starts_at(),
                 "fingerprint": "missingfp000001",
             }
         ],

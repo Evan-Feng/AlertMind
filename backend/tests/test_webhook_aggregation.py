@@ -14,12 +14,22 @@ SAVEPOINT db_session。本测试通过 monkeypatch(b)：把 alertmind.api.webhoo
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def _recent_starts_at() -> str:
+    """返回相对 now 的 Alertmanager 风格 ISO 时间戳（now - 1h，带 'Z' 后缀）。
+
+    绝对日期（如 "2026-04-20T10:00:00Z"）会随运行日期超出 aggregator 24h 窗口，
+    形成"时间炸弹"。所有 webhook payload helper 必须走这里。
+    """
+    return (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
 
 from alertmind.core.aggregator import aggregate
 from alertmind.models.alert import Alert
@@ -63,7 +73,7 @@ def _make_webhook_payload(
                     "instance": instance,
                 },
                 "annotations": {"summary": summary},
-                "startsAt": "2026-04-20T10:00:00Z",
+                "startsAt": _recent_starts_at(),
                 "endsAt": "0001-01-01T00:00:00Z",
                 "generatorURL": "http://prometheus.example.com",
                 "fingerprint": fingerprint,
@@ -80,6 +90,7 @@ def _make_multi_alert_payload(
 ) -> dict[str, Any]:
     """构造包含多条相似 alert 的 webhook payload。"""
     alerts = []
+    starts_at = _recent_starts_at()
     for i in range(count):
         alerts.append(
             {
@@ -90,7 +101,7 @@ def _make_multi_alert_payload(
                     "instance": f"node-{i}",
                 },
                 "annotations": {"summary": f"{alertname} 告警 on node-{i}"},
-                "startsAt": "2026-04-20T10:00:00Z",
+                "startsAt": starts_at,
                 "endsAt": "0001-01-01T00:00:00Z",
                 "generatorURL": "http://prometheus.example.com",
                 "fingerprint": uuid.uuid4().hex[:16],

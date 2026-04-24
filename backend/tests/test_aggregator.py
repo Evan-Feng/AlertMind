@@ -336,7 +336,9 @@ async def test_aggregate_updates_last_seen_at_to_max(
     """已有 incident last_seen=t0，新 alert starts_at=t0+1h → last_seen 更新为 t0+1h。"""
     # Arrange
     embedder = FakeEmbedder()
-    t0 = datetime(2026, 4, 20, 10, 0, 0, tzinfo=UTC)
+    # 用相对 now 的锚点，保证 incident.last_seen_at 落在 aggregator 24h 窗口内。
+    # 绝对日期（如 datetime(2026,4,20,...)）会随时间推移超窗口，形成"时间炸弹"。
+    t0 = datetime.now(UTC) - timedelta(hours=1)
     t1 = t0 + timedelta(hours=1)
 
     alert1 = await _insert_alert(

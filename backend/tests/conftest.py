@@ -21,7 +21,9 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import AsyncGenerator, Generator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -184,10 +186,49 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# sample_payloads：加载 sample_alerts.json 并递归替换绝对日期为相对 now
+# ---------------------------------------------------------------------------
+
+# 匹配 "YYYY-MM-DDTHH:MM:SS[.ffffff]Z"，YYYY 限定 2020-2039；
+# 保留 Alertmanager firing 哨兵 "0001-01-01T00:00:00Z"。
+_ISO_DATE_PATTERN = re.compile(r"^20[2-3]\d-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
+_ALERTMANAGER_SENTINEL = "0001-01-01T00:00:00Z"
+
+
+def _replace_absolute_dates(obj: Any, anchor_iso: str) -> Any:
+    """递归把任意 ISO 绝对日期（20xx 年）替换为 ``anchor_iso``。
+
+    - 保留 Alertmanager firing 哨兵 ``0001-01-01T00:00:00Z``（表示"未 resolved"）。
+    - 字段无关：任何字符串值只要匹配 ISO 日期 pattern 就替换，防御未来 Alertmanager
+      新增时间字段。
+    - 递归处理 dict / list；其他类型原样返回。
+    """
+    if isinstance(obj, str):
+        if obj == _ALERTMANAGER_SENTINEL:
+            return obj
+        if _ISO_DATE_PATTERN.match(obj):
+            return anchor_iso
+        return obj
+    if isinstance(obj, dict):
+        return {k: _replace_absolute_dates(v, anchor_iso) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_replace_absolute_dates(item, anchor_iso) for item in obj]
+    return obj
+
+
 @pytest.fixture(scope="session")
 def sample_payloads() -> dict[str, Any]:
-    """加载 tests/fixtures/sample_alerts.json，返回顶层 dict。"""
+    """加载 tests/fixtures/sample_alerts.json，并把所有绝对日期替换为 now-1h。
+
+    JSON 文件里的 ``startsAt`` / ``endsAt`` 是写死的 ``2026-04-20`` 字面量，
+    在 aggregator 24h 窗口语义下是"时间炸弹"——今天 CI 绿，N 天后会因窗口外
+    而聚合失败。本 fixture 在加载时递归扫描所有字符串值，命中 ISO 日期就替换
+    为 ``now - 1h``，JSON 文件保持可读的 Alertmanager 样本形态。
+    """
     import json
 
+    anchor_iso = (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
     with open(FIXTURES_DIR / "sample_alerts.json") as f:
-        return json.load(f)  # type: ignore[no-any-return]
+        raw: dict[str, Any] = json.load(f)
+    return _replace_absolute_dates(raw, anchor_iso)  # type: ignore[no-any-return]

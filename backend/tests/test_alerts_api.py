@@ -251,8 +251,8 @@ async def test_list_alerts_pagination_correct_pages_count(
     db_session: AsyncSession,
 ) -> None:
     """插入 25 行，?page_size=10 时 pages=3；?page=3 应只返回 5 条。"""
-    # Arrange — 插入 25 条 alerts
-    base_time = datetime(2026, 4, 20, 10, 0, 0, tzinfo=UTC)
+    # Arrange — 插入 25 条 alerts（锚点相对 now，避免时间炸弹）
+    base_time = datetime.now(UTC) - timedelta(hours=1)
     for i in range(25):
         starts_at = base_time + timedelta(minutes=i)
         await _insert_alert(
@@ -284,8 +284,8 @@ async def test_list_alerts_default_sort_by_starts_at_desc(
     db_session: AsyncSession,
 ) -> None:
     """列表接口默认按 starts_at DESC 排序，最新告警排第一。"""
-    # Arrange — 插入 3 条不同 starts_at 的 alerts（故意乱序插入）
-    base_time = datetime(2026, 4, 20, 12, 0, 0, tzinfo=UTC)
+    # Arrange — 插入 3 条不同 starts_at 的 alerts（故意乱序插入，锚点相对 now）
+    base_time = datetime.now(UTC) - timedelta(hours=1)
     alerts_data = [
         ("sort_fp_001", base_time),
         ("sort_fp_002", base_time + timedelta(hours=2)),  # 最新
