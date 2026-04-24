@@ -28,9 +28,15 @@ class IncidentRead(BaseModel):
     title: str = Field(..., description="事件标题（聚合规则拼装或 LLM 生成）")
     summary: str | None = Field(
         default=None,
-        description="事件摘要（阶段 4 LLM 根因分析填入；未分析时为 null）",
+        description=(
+            "Dashboard 列表卡片的副标题（≤150 字符），现象 + 规模"
+            "（见 ADR-010 Decision F）；LLM 分析完成后填入，未分析时为 null"
+        ),
     )
-    status: IncidentStatus = Field(..., description="事件状态：open | resolved")
+    status: IncidentStatus = Field(
+        ...,
+        description="事件状态：open（活跃）| analyzing（LLM 分析中）| resolved（已解决）",
+    )
     severity: IncidentSeverity | None = Field(
         default=None,
         description="严重级别：critical | warning | info；聚合初期可为 null",

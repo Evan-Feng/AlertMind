@@ -30,9 +30,15 @@ if TYPE_CHECKING:
 
 
 class IncidentStatus(StrEnum):
-    """事件生命周期状态。"""
+    """事件生命周期状态。
+
+    ``analyzing`` 是 LLM 分析进行中的瞬态；成功或失败都回落到 ``open``。
+    判"是否已分析"以 ``analyzed_at IS NOT NULL`` 为准，与 ``status`` 解耦
+    （见 ADR-010 Decision D）。
+    """
 
     OPEN = "open"
+    ANALYZING = "analyzing"
     RESOLVED = "resolved"
 
 
@@ -59,14 +65,17 @@ class Incident(Base):
     summary: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        doc="事件摘要（LLM 根因分析输出；未分析时为空）",
+        doc=(
+            "Dashboard 列表卡片的副标题（≤150 字），补充 title 没说清的'现象 + 规模'上下文。"
+            "禁止存储 root_cause 节选 / 建议语 / 导航提示（见 ADR-010 Decision F）。"
+        ),
     )
     status: Mapped[str] = mapped_column(
         String(16),
         default=IncidentStatus.OPEN.value,
         server_default="open",
         nullable=False,
-        doc="取值见 IncidentStatus：open / resolved",
+        doc="取值见 IncidentStatus：open / analyzing / resolved",
     )
     severity: Mapped[str | None] = mapped_column(
         String(16),
@@ -110,6 +119,41 @@ class Incident(Base):
         nullable=False,
         doc="记录最近一次更新时间",
     )
+    root_cause: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="LLM 根因分析：完整根因推断（阶段 4 LLM 填入；未分析时为 null）",
+    )
+    impact: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="LLM 影响范围分析（阶段 4 LLM 填入）",
+    )
+    suggestions: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="LLM 处置建议（markdown 列表格式；阶段 4 LLM 填入）",
+    )
+    llm_model: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        doc="本次分析使用的模型名，如 'gpt-4o-mini'",
+    )
+    llm_tokens_used: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc="本次分析消耗的 total token 数",
+    )
+    analyzed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="分析完成时间；判定 Incident 是否已分析以本字段 IS NOT NULL 为准",
+    )
+    prompt_version: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        doc="Prompt 版本号，格式 '{name}_{lang}_v{N}'，如 'analyzer_zh_v1'",
+    )
 
     alerts: Mapped[list[Alert]] = relationship(
         "Alert",
@@ -120,7 +164,7 @@ class Incident(Base):
     __table_args__ = (
         PrimaryKeyConstraint("id", name="pk_incidents"),
         CheckConstraint(
-            "status IN ('open', 'resolved')",
+            "status IN ('open', 'analyzing', 'resolved')",
             name="ck_incidents_status",
         ),
         CheckConstraint(
