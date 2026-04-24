@@ -148,20 +148,29 @@
 ## TD-008: setup-uv@v4 cache service 连续失败
 
 - **位置**：`.github/workflows/ci.yml` 的 uv cache 步骤
-- **来源**：阶段 4 W1 (commit a03a5ae) + TD-007 登记 (commit e3f71ab) 连续 2 次 CI run 观测
+- **来源**：连续 3 次 CI run 观测 (a03a5ae / e3f71ab / 5a714c2)
 - **现状**：
   - `setup-uv@v4` 的 cache restore 持续返回 400 error
+  - cache save 也持续失败（`"Our services aren't available"`）
   - 每次 CI 都重新下载 uv 依赖（CI 时长虽然仍在 1m30s-1m45s 区间，但不走 cache）
   - GitHub Actions Cache v2 服务已于 2026-02 升级
-- **可能原因**（未 debug）：
+- **可能原因**：
   - `setup-uv@v4` 与新 Cache v2 API 协议不兼容
   - `cache-dependency-glob: **/uv.lock` 在 backend/ 子目录场景下 glob 失效
   - `astral-sh/setup-uv@v4` 自身的 bug（v5 可能已修复）
+  - **已确认的诊断**（2026-04-24，基于 3 次 CI run 观测）：
+    - Restore 和 save **都**持续失败（不是单向失败）
+    - Save 失败意味着**不是 cache-key glob 匹配问题**（glob 问题只影响 restore 的命中率，不影响写入）
+    - 指向 `setup-uv@v4` 底层 cache adapter 与 2026-02 升级后的 Cache v2 协议**结构性不兼容**
+    - 修复方向**排除**"调 `cache-dependency-glob`"选项
 - **影响**：
   - CI 未因此变慢到红线（当前 ~1m40s）
   - 但 HuggingFace 模型 cache（阶段 3 W5 增加）可能同样受影响
   - 未来阶段 4 W4 真实 API integration test 若加依赖，cache miss 会放大延迟
-- **修复方向**：与 TD-007 一起处理（两个 TD 都指向 `astral-sh/setup-uv@v4`，v5 升级可能同时解决）
+- **修复方向**：
+  - 直接升级 `astral-sh/setup-uv@v4` → `v5`（与 TD-007 Node 20 升级合并）
+  - **排除**调整 `cache-dependency-glob`（因为 save 也挂，不是 glob 问题）
+  - 若 v5 仍不修复，再考虑弃用 setup-uv 的内置 cache，手动 `actions/cache@v4` 管理 uv cache
 - **计划偿还**：阶段 6/7 期间一起 handle TD-007 + TD-008
 - **优先级**：低（不阻塞，但有潜在恶化风险）
 - **相关**：TD-007（同一 action 的 Node 20 deprecation 问题）
