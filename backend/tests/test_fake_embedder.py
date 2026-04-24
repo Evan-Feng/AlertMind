@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -173,11 +174,13 @@ def test_fake_embedder_cross_process_stable() -> None:
         "v = e.embed('HighCPU on node-1');\n"
         "print(repr(v[:10]))"  # 只打印前 10 维用于对比
     )
+    # backend/ 目录 = 本文件所在 tests/ 的父目录。用相对计算避免硬编码本机路径。
+    backend_root = Path(__file__).resolve().parent.parent
     result = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,
-        cwd="/Users/evanfeng/projects/alertmind/backend",
+        cwd=str(backend_root),
         env={**__import__("os").environ, "PYTHONHASHSEED": "99999"},
     )
     assert result.returncode == 0, f"子进程失败: {result.stderr}"
