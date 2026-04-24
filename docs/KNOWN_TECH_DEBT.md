@@ -2,26 +2,36 @@
 
 本文档记录已识别但暂未修复的技术债务。每条记录包含 git blame 来源、修复建议、计划偿还时机。
 
-## TD-001: Mapped[dict] 缺少类型参数（mypy 警告）
+## ~~TD-001: Mapped[dict] 缺少类型参数（mypy 警告）~~ ✅ RESOLVED
 
-- **位置**：
-  - `backend/alertmind/models/alert.py:76` (labels)
-  - `backend/alertmind/models/alert.py:81` (annotations)
-  - `backend/alertmind/models/alert.py:101` (raw_payload)
-- **来源**：commit d55a78c9 (阶段 2 Wave 1, 2026-04-19)
-- **现状**：mypy 报 "Missing type arguments for generic type 'dict'"
-- **修复建议**：改为 `Mapped[dict[str, Any]]`
-- **影响**：仅 mypy 静态检查，运行时无影响
-- **计划偿还**：阶段 7 代码质量打磨
+**偿还**：commit `9a481e6` (2026-04-24)
+**原因**：`|| true` 绕过与"时间炸弹守门员"精神矛盾；阶段 4 需要 mypy 作为实时守门员拦截 LLM Provider 代码的类型错误
 
-## TD-002: Redis .ping() 返回类型不兼容 await
+以下为历史记录，保留供未来溯源：
 
-- **位置**：`backend/alertmind/api/health.py:39`
-- **来源**：commit a53aef55 (阶段 1, 2026-04-18)
-- **现状**：mypy 报 "Incompatible types in 'await'"
-- **修复建议**：使用 `cast(Awaitable[bool], redis_client.ping())` 或升级 redis-py 类型 stub
-- **影响**：仅 mypy 静态检查，运行时无影响
-- **计划偿还**：阶段 7 代码质量打磨
+- ~~**位置**~~：
+  - ~~`backend/alertmind/models/alert.py:76` (labels)~~
+  - ~~`backend/alertmind/models/alert.py:81` (annotations)~~
+  - ~~`backend/alertmind/models/alert.py:101` (raw_payload)~~
+- ~~**来源**：commit d55a78c9 (阶段 2 Wave 1, 2026-04-19)~~
+- ~~**现状**：mypy 报 "Missing type arguments for generic type 'dict'"~~
+- ~~**修复建议**：改为 `Mapped[dict[str, Any]]`~~
+- ~~**影响**：仅 mypy 静态检查，运行时无影响~~
+- ~~**计划偿还**：阶段 7 代码质量打磨~~
+
+## ~~TD-002: Redis .ping() 返回类型不兼容 await~~ ✅ RESOLVED
+
+**偿还**：commit `9a481e6` (2026-04-24)
+**方案**：`cast(Awaitable[bool], client.ping())` 缩窄联合类型，不改 import（原 import 已是 `redis.asyncio.Redis`，无可升级空间）
+
+以下为历史记录，保留供未来溯源：
+
+- ~~**位置**：`backend/alertmind/api/health.py:39`~~
+- ~~**来源**：commit a53aef55 (阶段 1, 2026-04-18)~~
+- ~~**现状**：mypy 报 "Incompatible types in 'await'"~~
+- ~~**修复建议**：使用 `cast(Awaitable[bool], redis_client.ping())` 或升级 redis-py 类型 stub~~
+- ~~**影响**：仅 mypy 静态检查，运行时无影响~~
+- ~~**计划偿还**：阶段 7 代码质量打磨~~
 
 ## TD-004: PRD §3.2 Incident 表字段未完整实现（LLM 相关字段）
 
