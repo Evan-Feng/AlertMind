@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -73,12 +73,12 @@ class Alert(Base):
         nullable=False,
         doc="Prometheus 规则名（labels.alertname）",
     )
-    labels: Mapped[dict] = mapped_column(
+    labels: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         doc="Alertmanager 原样标签字典",
     )
-    annotations: Mapped[dict] = mapped_column(
+    annotations: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         doc="Alertmanager 原样注释字典（summary / description 等）",
@@ -98,7 +98,7 @@ class Alert(Base):
         nullable=True,
         doc="Alertmanager generatorURL（通常指向 Prometheus 表达式）",
     )
-    raw_payload: Mapped[dict] = mapped_column(
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         doc="Alertmanager 原始 webhook payload（保留审计与回放能力）",

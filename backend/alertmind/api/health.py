@@ -7,7 +7,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Any
+from collections.abc import Awaitable
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
@@ -35,8 +36,13 @@ async def _check_database(session: AsyncSession) -> None:
 
 
 async def _check_redis(client: Redis) -> None:
-    """对 Redis 执行 ``PING``；失败时抛出原始异常。"""
-    await client.ping()
+    """对 Redis 执行 ``PING``；失败时抛出原始异常。
+
+    ``redis.asyncio.Redis.ping()`` 在类型标注上返回 ``Awaitable[bool] | bool``
+    的联合类型（redis-py 的 stub 历史遗留），mypy 无法识别 async 语境下
+    实际为前者。``cast`` 缩窄到 ``Awaitable[bool]`` 供 ``await`` 使用。
+    """
+    await cast(Awaitable[bool], client.ping())
 
 
 @router.get("/health/ready", summary="Readiness probe")
