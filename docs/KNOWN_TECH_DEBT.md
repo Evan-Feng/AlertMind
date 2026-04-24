@@ -144,3 +144,24 @@
   - 硬切日前（2026-06-02 前）必须完成
   - 建议阶段 6/7 期间处理，避免在阶段 4 LLM 工作期间分心
 - **优先级**：中等（非立即，但有 deadline）
+
+## TD-008: setup-uv@v4 cache service 连续失败
+
+- **位置**：`.github/workflows/ci.yml` 的 uv cache 步骤
+- **来源**：阶段 4 W1 (commit a03a5ae) + TD-007 登记 (commit e3f71ab) 连续 2 次 CI run 观测
+- **现状**：
+  - `setup-uv@v4` 的 cache restore 持续返回 400 error
+  - 每次 CI 都重新下载 uv 依赖（CI 时长虽然仍在 1m30s-1m45s 区间，但不走 cache）
+  - GitHub Actions Cache v2 服务已于 2026-02 升级
+- **可能原因**（未 debug）：
+  - `setup-uv@v4` 与新 Cache v2 API 协议不兼容
+  - `cache-dependency-glob: **/uv.lock` 在 backend/ 子目录场景下 glob 失效
+  - `astral-sh/setup-uv@v4` 自身的 bug（v5 可能已修复）
+- **影响**：
+  - CI 未因此变慢到红线（当前 ~1m40s）
+  - 但 HuggingFace 模型 cache（阶段 3 W5 增加）可能同样受影响
+  - 未来阶段 4 W4 真实 API integration test 若加依赖，cache miss 会放大延迟
+- **修复方向**：与 TD-007 一起处理（两个 TD 都指向 `astral-sh/setup-uv@v4`，v5 升级可能同时解决）
+- **计划偿还**：阶段 6/7 期间一起 handle TD-007 + TD-008
+- **优先级**：低（不阻塞，但有潜在恶化风险）
+- **相关**：TD-007（同一 action 的 Node 20 deprecation 问题）
