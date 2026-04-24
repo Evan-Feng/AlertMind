@@ -40,33 +40,47 @@
   - `backend/alembic/versions/2026_04_18_1830-0001_init_alerts_and_incidents.py`
 
 - **来源**：阶段 2 Wave 1（commit d55a78c9）
-  - 主动收窄 schema 范围，未建 LLM 相关字段
-  - 同时新增 `summary` 字段（PRD §3.2 未定义）
 
-- **现状对照**：
+- **偿还时机**：**阶段 4 Wave 1 作为先行 schema 补齐 migration**（alembic 0003）
 
-| PRD §3.2 字段 | 类型 | 实现状态 |
-|---|---|---|
-| root_cause | str \| None | ❌ 缺失 |
-| impact | str \| None | ❌ 缺失 |
-| suggestions | str \| None | ❌ 缺失 |
-| llm_model | str \| None | ❌ 缺失 |
-| llm_tokens_used | int \| None | ❌ 缺失 |
-| analyzed_at | datetime \| None | ❌ 缺失 |
-| status 枚举含 "analyzing" | CheckConstraint | ❌ 仅 open/resolved |
-| summary (W1 新增) | Text \| None | ⚠️ PRD 原文无 |
+- **精确 spec**（由 ADR-010 Decision F 裁定；阶段 4 W1 派发 database-architect 时直接引用）：
 
-- **原因**：阶段 2 "按阶段严格推进" 工程判断，延后非当前阶段字段
+### alembic 0003 字段清单
 
-- **影响**：阶段 4 LLM 分析引擎依赖这些字段存储分析结果
+| # | 字段 | 类型 | Nullable | 来源 | 语义 |
+|---|---|---|---|---|---|
+| 1 | `title` | String(512) | NOT NULL | **已存在**（保留） | Dashboard 卡片标题（≤ 60 字），LLM 分析后覆盖占位串 |
+| 2 | `summary` | Text | NULL | **已存在**（语义锁定） | 卡片副标题：现象 + 规模（≤ 150 字）。**不是** title 缩短版，**不是** root_cause 摘要 |
+| 3 | `root_cause` | Text | NULL | 新增 | 详情页正文：完整根因分析（无长度上限） |
+| 4 | `impact` | Text | NULL | 新增 | LLM 影响范围分析 |
+| 5 | `suggestions` | Text | NULL | 新增 | LLM 处置建议（markdown 列表格式） |
+| 6 | `llm_model` | String(128) | NULL | 新增 | 使用的模型名（如 `gpt-4o-mini`） |
+| 7 | `llm_tokens_used` | Integer | NULL | 新增 | 本次分析 total token 数 |
+| 8 | `analyzed_at` | DateTime(tz=True) | NULL | 新增 | 分析完成时间；判"是否已分析"以本字段 IS NOT NULL 为准 |
+| 9 | `prompt_version` | String(64) | NULL | 新增 | Prompt 版本号，格式 `{name}_{lang}_v{N}`（如 `analyzer_zh_v1`） |
 
-- **偿还时机**：**阶段 4 Wave 1 作为先行 schema 补齐 migration**
-  - 新建 alembic 0003：补 6 字段 + 扩展 status CheckConstraint
-  - 决策（待阶段 4 Wave 1 明确）：`summary` 保留 or 合并到 `root_cause`？
-    建议保留，作为"短摘要 vs 完整根因"的分层
+### status CheckConstraint 扩展
 
-- **跨 Agent 可见性**：阶段 4 Wave 1 派发 database-architect 时必须引用本 TD，
-  避免其按 PRD §3.2 原文设计时把已有字段当"新建"
+- 旧：`status IN ('open', 'resolved')`
+- 新：`status IN ('open', 'analyzing', 'resolved')`
+- **PostgreSQL 限制**：不支持直接 `ALTER CHECK`，migration 必须：
+  1. `ALTER TABLE incidents DROP CONSTRAINT ck_incidents_status`
+  2. `ALTER TABLE incidents ADD CONSTRAINT ck_incidents_status CHECK (status IN ('open', 'analyzing', 'resolved'))`
+- **downgrade** 必须反向执行（回到 open/resolved 二值）；若下行时存在 `status='analyzing'`
+  的数据必须先处理（例如 UPDATE 回 open），否则 ADD CONSTRAINT 会失败
+
+### 其他约束
+
+- 字段 2（`summary`）语义由 ADR-010 Decision F 锁定：副标题定位，长度 ≤ 150 字。
+  **不允许**在 W1 迁移 docstring 之外使用 summary 存其他内容
+- 字段 8（`analyzed_at`）与 `status` 字段**正交**：状态机见 ADR-010 Decision D
+- 本次迁移**仅 schema**，不涉及业务代码；LLM 调用逻辑在 W2-W5 实现
+
+### 跨 Agent 可见性
+
+- 阶段 4 Wave 1 派发 database-architect 时必须引用：`docs/adr/ADR-010.md` Decision F
+  + 本 TD-004（9 字段清单是 TD 本节的唯一事实来源）
+- 阶段 4 Wave 2+ 派发 backend-engineer 时必须引用：本 TD 的字段清单 + ADR-010 决策 A-K
 
 ## TD-003: test_aggregate_24h_window_outside 测试强度不足
 
