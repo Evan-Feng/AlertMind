@@ -76,3 +76,26 @@
   只是对窗口逻辑的保护不足
 - **计划偿还**：阶段 7 代码质量打磨 / 或阶段 4 开始时顺手补（因为阶段 4 会频繁调 aggregator，
   此时发现回归成本低）
+
+## TD-005: 测试风格守门员不支持 docstring 豁免
+
+- **位置**：`backend/tests/test_style_guards.py::test_no_absolute_datetime_literals_in_fixtures`
+- **来源**：commit a330871 (阶段 3 CI 修复 Commit C, 2026-04-24)
+- **现状**：
+  - 守门员的豁免逻辑仅覆盖以 `#` 开头的整行注释
+  - docstring 内容（三引号字符串）会被视为普通代码扫描
+  - 行尾注释（如 `x = 1  # 2026-04-20T...`）也会被扫描
+- **当前 workaround**：
+  - Commit C 中 `_recent_starts_at` 的 docstring 用叙述式"绝对 ISO 日期字面量"
+    替代真实的反例字面量，避免守门员误伤
+  - 该 workaround 依赖作者主动避坑
+- **未来风险**：
+  - 新写测试的人在 docstring 里写反例说明时，会被守门员误伤
+  - 临时豁免会诱导开发者加 `# type: ignore` 式的跳过标记，侵蚀守门员价值
+- **修复方向**：
+  - 方案 A：用 `ast.parse()` + visitor 模式跳过所有 docstring 节点
+  - 方案 B：regex 升级识别三引号字符串边界
+  - 方案 C：保留现状，仅在新命中时手动处理（接受现实）
+- **计划偿还**：阶段 7 代码质量打磨，或守门员首次出现误伤时立即处理
+
+这条 TD 本身不阻塞任何当前功能，仅记录架构限制。
