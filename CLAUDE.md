@@ -123,6 +123,32 @@
 - **命名**：英文标识符 + 中文注释；不要中英文混用变量名
 - **日志**：后端用 `loguru`，禁止 `print`
 
+### 5.1 测试风格硬约束
+
+#### 禁止硬编码绝对日期（时间炸弹）
+
+测试 fixture 里的时间锚点**必须用相对 now**，不能用绝对字面量。aggregator 等模块基于相对 `now()` 的时间窗口（如 24h）工作，绝对日期会随测试执行日期推移超出窗口，形成"时间炸弹"——今天 CI 绿，N 天后突然集体红。
+
+**禁止**：
+
+```python
+t0 = datetime(2026, 4, 20, 10, 0, 0, tzinfo=UTC)  # 时间炸弹
+starts_at = "2026-04-20T10:00:00Z"                 # 时间炸弹
+```
+
+**推荐**：
+
+```python
+t0 = datetime.now(UTC) - timedelta(hours=1)                                  # 相对 now
+starts_at = (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+```
+
+**例外**（极罕见）：测试某个真实的历史时间戳行为时可用绝对时间，但必须在测试 docstring 里说明"为什么这里不用相对时间"。
+
+**守门员**：`backend/tests/test_style_guards.py::test_no_absolute_datetime_literals_in_fixtures` 自动扫描 `backend/tests/**/*.py` 检测此反模式；引入违规会让 CI 挂。
+
+**JSON fixture**：`backend/tests/fixtures/*.json` 里的绝对日期由 `conftest.py::sample_payloads` 动态替换（递归扫描），守门员只扫 `.py`，两层机制互补。
+
 ---
 
 ## 6. 环境变量管理

@@ -22,19 +22,20 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
-def _recent_starts_at() -> str:
-    """返回相对 now 的 Alertmanager 风格 ISO 时间戳（now - 1h，带 'Z' 后缀）。
-
-    绝对日期（如 "2026-04-20T10:00:00Z"）会随运行日期超出 aggregator 24h 窗口，
-    形成"时间炸弹"。所有 webhook payload helper 必须走这里。
-    """
-    return (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
-
 from alertmind.core.aggregator import aggregate
 from alertmind.models.alert import Alert
 from alertmind.models.incident import Incident
 from tests.fixtures.fake_embedder import FakeEmbedder
+
+
+def _recent_starts_at() -> str:
+    """返回相对 now 的 Alertmanager 风格 ISO 时间戳（now - 1h，带 'Z' 后缀）。
+
+    绝对 ISO 日期字面量会随运行日期超出 aggregator 24h 窗口，形成"时间炸弹"。
+    所有 webhook payload helper 必须走这里，禁止直接写死 YYYY-MM-DD 字符串。
+    """
+    return (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+
 
 # ---------------------------------------------------------------------------
 # 辅助：构建 Alertmanager webhook payload
